@@ -17,8 +17,8 @@ func main() {
 	}
 
 	for _, p := range result {
-		fmt.Printf("Original IP: %s, Country: %s\n",
-			p.IP, p.Country)
+		fmt.Printf("CIDR: %s, Country: %s\n",
+			p.Cidr, p.Country)
 	}
 	fmt.Println("Countries count: ", len(result))
 }

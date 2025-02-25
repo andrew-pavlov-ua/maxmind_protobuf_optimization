@@ -12,14 +12,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func WriteProtoFile(filePath string, data []*models.IpData) error {
+func WriteProtoFile(filePath string, data *models.CidrCountryPairs) error {
 	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer outFile.Close() // Always close the file!
 
-	for _, data := range data {
+	for _, data := range data.Pairs {
 		// Serialize the data to Protobuf binary
 		item, err := proto.Marshal(data)
 		if err != nil {
@@ -41,14 +41,14 @@ func WriteProtoFile(filePath string, data []*models.IpData) error {
 	return nil
 }
 
-func ReadProtoFile(filePath string) ([]*models.IpData, error) {
+func ReadProtoFile(filePath string) ([]*models.CidrCountryPair, error) {
 	inFile, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer inFile.Close() // Always close the file!
 
-	var allIpData []*models.IpData
+	var allIpData []*models.CidrCountryPair
 
 	for {
 		// Read message length first
@@ -68,7 +68,7 @@ func ReadProtoFile(filePath string) ([]*models.IpData, error) {
 		}
 
 		// Deserialize the protobuf message
-		var data models.IpData
+		var data models.CidrCountryPair
 		if err := proto.Unmarshal(buf, &data); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 		}
@@ -79,7 +79,7 @@ func ReadProtoFile(filePath string) ([]*models.IpData, error) {
 	return allIpData, nil
 }
 
-func UnmarshalJSON(filePath string) ([]*models.IpData, error) {
+func UnmarshalJSON(filePath string) (*models.CidrCountryPairs, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file: %v", err)
@@ -92,17 +92,18 @@ func UnmarshalJSON(filePath string) ([]*models.IpData, error) {
 		return nil, fmt.Errorf("error unmarshalling json: %v", err)
 	}
 
-	var parsedData []*models.IpData
+	var parsedData models.CidrCountryPairs
+
 	for _, m := range rawData {
 		for cidr, geo := range m {
 			country := geo.Countries.Names["en"]
 
-			parsedData = append(parsedData, &models.IpData{
-				IP:      cidr,
+			parsedData.Pairs = append(parsedData.Pairs, &models.CidrCountryPair{
+				Cidr:    cidr,
 				Country: country,
 			})
 		}
 	}
 
-	return parsedData, err
+	return &parsedData, err
 }
