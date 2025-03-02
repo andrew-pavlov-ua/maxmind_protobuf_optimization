@@ -1,0 +1,6 @@
+run: 
+	go run cmd/main.go
+bench:
+	go test -bench=. -benchmem ./...
+test:
+	go test -v ./...
