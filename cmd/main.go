@@ -4,16 +4,13 @@ import (
 	"cmd/internal/models"
 	"cmd/internal/services"
 	"fmt"
-	"net"
-	"os"
-
-	"github.com/oschwald/maxminddb-golang"
 )
 
 const (
-	jsonPath  = "./assets/GeoLite2-Country-Test.json"
-	protoPath = "./assets/GeoLite2-Country-Test.proto"
-	mmdbPath  = "./assets/GeoLite2-Country-Test.mmdb"
+	jsonPath      = "./assets/GeoLite2-Country-Test.json"
+	protoPath     = "./assets/GeoLite2-Country-Test.proto"
+	tempProtoPath = "./assets/GeoLite2-Country-Test-temp.proto"
+	mmdbPath      = "./assets/GeoLite2-Country-Test.mmdb"
 )
 
 // func main() {
@@ -26,63 +23,64 @@ const (
 
 // }
 
-// func main() {
-// 	err := services.ConvertJSONToProtoFiles("./assets/GeoLite2-Country-Test.json", "./assets/GeoLite2-Country-Test.proto")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	data, err := services.ReadFullProtoFile("./assets/GeoLite2-Country-Test.proto")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	PrintData(data)
-// }
-
 func main() {
-	content, err := os.ReadFile(mmdbPath)
+	err := services.ConvertJSONToProtoFiles(jsonPath, protoPath)
 	if err != nil {
 		panic(err)
 	}
 
-	db, err := maxminddb.FromBytes(content)
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	geoPairs, err := services.ReadFullProtoFile(protoPath)
+	data, err := services.UnmarshalProtoFile(protoPath)
 	if err != nil {
 		panic(err)
 	}
 
-	for i, pair := range geoPairs.Geos {
-		ip, _, err := net.ParseCIDR(pair.CIDR)
-		if err != nil {
-			panic(err)
-		}
-
-		var result models.MMDBDataItem
-
-		db.Lookup(ip, &result)
-		fmt.Printf("%v) Result:%v \n---------------------------------------------\n", i, result)
-	}
+	PrintData(data)
 }
 
+// func main() {
+// 	content, err := os.ReadFile(mmdbPath)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	db, err := maxminddb.FromBytes(content)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer db.Close()
+
+// 	geoPairs, err := services.ReadFullProtoFile(protoPath)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	for i, pair := range geoPairs.Geos {
+// 		ip, _, err := net.ParseCIDR(pair.CIDR)
+// 		if err != nil {
+// 			panic(err)
+// 		}
+
+// 		var result models.MMDBDataItem
+
+// 		db.Lookup(ip, &result)
+// 		fmt.Printf("%v) Result:%v \n---------------------------------------------\n", i, result)
+// 	}
+// }
+
 // PrintData prints all parsed information
-func PrintData(dataItems *models.DataItems) {
+func PrintData(dataItems *models.Root) {
 	if dataItems == nil || len(dataItems.Geos) == 0 {
 		fmt.Println("No data available.")
 		return
 	}
 
 	fmt.Println("Parsed Data:")
-	for _, item := range dataItems.Geos {
-		fmt.Printf("CIDR: %s\n", item.CIDR)
-		fmt.Printf("  Continent: %s\n", item.Geo.Continent)
-		fmt.Printf("  Country: %s\n", item.Geo.Country)
-		fmt.Printf("  Registered Country: %s\n", item.Geo.RegisteredCountry)
+	for cidr, geoId := range dataItems.CidrCountryPairs {
+		geo := dataItems.Geos[geoId]
+		fmt.Printf("CIDR: %s\n", cidr)
+		fmt.Printf("  Continent: %s\n", geo.Continent)
+		fmt.Printf("  Country: %s\n", geo.Country)
+		fmt.Printf("  Registered Country: %s\n", geo.RegisteredCountry)
 		fmt.Println("-----------------------------")
 	}
 }
