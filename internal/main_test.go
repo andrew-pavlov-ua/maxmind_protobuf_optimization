@@ -3,11 +3,14 @@ package test
 import (
 	"cmd/internal/models"
 	"cmd/internal/services"
+	"fmt"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/oschwald/maxminddb-golang"
 	"github.com/stretchr/testify/require"
+	"github.com/test-go/testify/assert"
 )
 
 const (
@@ -183,7 +186,10 @@ var testTable = []struct {
 	{CIDR: "2a02:ec00::/29", ISOCode: "FR"}}
 
 func TestLookUpCountriesMmdb(t *testing.T) {
-	db, err := maxminddb.Open(MMDBCountryFilePath)
+	content, err := os.ReadFile(MMDBCountryFilePath)
+	require.NoError(t, err)
+
+	db, err := maxminddb.FromBytes(content)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -209,9 +215,9 @@ func TestLookUpCountriesProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// Build a map from CIDR to ISO code for fast lookups.
-	cidrToIso := make(map[string]string, len(pairs.Pairs))
-	for _, pair := range pairs.Pairs {
-		cidrToIso[pair.Cidr] = pair.Isocode
+	cidrToIso := make(map[string]string, len(pairs.Geos))
+	for _, pair := range pairs.Geos {
+		cidrToIso[pair.CIDR] = pair.Geo.Country.IsoCode
 	}
 
 	// For each test case, check that the expected ISO code matches the one in the map.
@@ -220,6 +226,37 @@ func TestLookUpCountriesProto(t *testing.T) {
 		require.True(t, ok, "CIDR %v not found in proto data", tc.CIDR)
 		t.Logf("Current case IP and Country: %v - expected: %v, got: %v", tc.CIDR, tc.ISOCode, iso)
 		require.Equal(t, tc.ISOCode, iso)
+	}
+}
+
+func TestLookUpCountriesFromProtoInMMDB(t *testing.T) {
+	content, err := os.ReadFile(MMDBCountryFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	db, err := maxminddb.FromBytes(content)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	geoPairs, err := services.ReadFullProtoFile(ProtoCountryFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, pair := range geoPairs.Geos {
+		ip, _, err := net.ParseCIDR(pair.CIDR)
+		require.NoError(t, err)
+
+		var result models.MMDBDataItem
+
+		err = db.Lookup(ip, &result)
+		require.NoError(t, err)
+		if result.Continent == nil && result.Country == nil && result.RegisteredCountry == nil {
+			assert.Fail(t, fmt.Sprintf("All fields (Continent, Country, RegisteredCountry) are nil for IP: %v", ip))
+		}
 	}
 }
 
@@ -266,9 +303,9 @@ func BenchmarkLookUpCountriesProto(b *testing.B) {
 		b.Fatal(err)
 	}
 	// Build a map from CIDR to ISO code for O(1) lookups.
-	cidrToIso := make(map[string]string, len(pairs.Pairs))
-	for _, pair := range pairs.Pairs {
-		cidrToIso[pair.Cidr] = pair.Isocode
+	cidrToIso := make(map[string]string, len(pairs.Geos))
+	for _, pair := range pairs.Geos {
+		cidrToIso[pair.CIDR] = pair.Geo.Country.IsoCode
 	}
 
 	// Pre-store the CIDR strings from testTable.

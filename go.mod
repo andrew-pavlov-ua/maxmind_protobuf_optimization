@@ -13,5 +13,6 @@ require (
 require (
 	github.com/oschwald/maxminddb-golang v1.13.1
 	github.com/stretchr/testify v1.10.0
+	github.com/test-go/testify v1.1.4
 	golang.org/x/sys v0.21.0 // indirect
 )
