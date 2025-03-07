@@ -18,15 +18,16 @@ This repository is designed to compare two different approaches for representing
 ## File Size Comparison
 
 ### Non-Optimised Version
-- `GeoLite2-Country-Test.json` — 328K
 - `GeoLite2-Country-Test.mmdb` — 20K
 - `GeoLite2-Country-Test.proto` — 84K
+- `GeoLite2-Country-Test.json` — 328K
+
+
 
 ### After Optimisation
-- `GeoLite2-Country-Test-temp.proto` — 20K (Optimised proto schema)
+- `GeoLite2-Country-Test.proto` — 20K (Optimised proto schema)
+  `GeoLite2-Country-Test.mmdb` — 20K
 - `GeoLite2-Country-Test.json` — 328K
-- `GeoLite2-Country-Test.mmdb` — 20K
-- `GeoLite2-Country-Test.proto` — 84K (Original proto remains unchanged)
 
 ## Benchmark Results
 
