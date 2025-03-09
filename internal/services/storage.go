@@ -115,3 +115,17 @@ func LookUpProtoIp(ip net.IP, data *models.Root) (*models.Geo, error) {
 
 	return result, nil
 }
+
+func LookUpProtoCidr(cidr string, data *models.Root) (*models.Geo, error) {
+	dataId, exists := data.CidrCountryPairs[cidr]
+	if !exists {
+		return nil, fmt.Errorf("not found data by CIDR - %s", cidr)
+	}
+
+	result := data.Geos[dataId]
+	if result == nil {
+		return nil, fmt.Errorf("not found data by index - cidr: %s", cidr)
+	}
+
+	return result, nil
+}

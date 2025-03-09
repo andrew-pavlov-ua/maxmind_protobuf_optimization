@@ -228,16 +228,13 @@ func TestLookUpCountriesProto(t *testing.T) {
 	for _, tc := range testTable {
 		iso, ok := cidrToIso[tc.CIDR]
 		require.True(t, ok, "CIDR %v not found in proto data", tc.CIDR)
-		t.Logf("Current case IP and Country: %v - expected: %v, got: %v", tc.CIDR, tc.ISOCode, iso)
+		t.Logf("Current case CIDR and Country: %v - expected: %v, got: %v", tc.CIDR, tc.ISOCode, iso)
 		require.Equal(t, tc.ISOCode, iso)
 	}
 }
 
-var dummyCount int
-
 // BenchmarkLookUpCountriesMmdb benchmarks the lookup performance using the MMDB file
 func BenchmarkLookUpCountriesMmdb(b *testing.B) {
-	dummyCount = 0
 	db, err := maxminddb.Open(MMDBCountryFilePath)
 	if err != nil {
 		b.Fatal(err)
@@ -261,7 +258,6 @@ func BenchmarkLookUpCountriesMmdb(b *testing.B) {
 		if err := db.Lookup(ip, &record); err != nil {
 			b.Fatal(err)
 		}
-		dummyCount += len(record.Country.ISOCode)
 	}
 }
 
@@ -272,21 +268,17 @@ func BenchmarkLookUpCountriesProto(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	// Pre-parse the IP addresses from the test table
-	ips := make([]net.IP, len(testTable))
+	// Extract CIDRs from the test table
+	cidrs := make([]string, len(testTable))
 	for i, tc := range testTable {
-		ip, _, err := net.ParseCIDR(tc.CIDR)
-		if err != nil {
-			b.Fatal(err)
-		}
-		ips[i] = ip
+		cidrs[i] = tc.CIDR
 	}
 
 	// Main bench loop
 	for i := 0; b.Loop(); i++ {
-		ip := ips[i%len(ips)]
-		if _, err := services.LookUpProtoIp(ip, root); err != nil {
-			b.Fatalf("IP %v lookup failed: %v", ip, err)
+		cidr := cidrs[i%len(cidrs)]
+		if _, err := services.LookUpProtoCidr(cidr, root); err != nil {
+			b.Fatalf("CIDR %v lookup failed: %v", cidr, err)
 		}
 	}
 }
