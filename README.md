@@ -42,5 +42,5 @@ BenchmarkLookUpCountriesProto-12        100000000               10.52 ns/op     
 ### After Optimisation
 
 ```bash
-BenchmarkLookUpCountriesMmdb-12          2869218               418.4 ns/op            64 B/op          1 allocs/op
-BenchmarkLookUpCountriesProto-12        14571644                82.05 ns/op           16 B/op          1 allocs/op
+BenchmarkLookUpCountriesMmdb-12          1847648               645.6 ns/op            33 B/op          1 allocs/op
+BenchmarkLookUpCountriesProto-12        97627989                11.81 ns/op            0 B/op          0 allocs/op
