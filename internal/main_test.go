@@ -254,7 +254,7 @@ func BenchmarkLookUpCountriesMmdb(b *testing.B) {
 		ips[i] = ip
 	}
 
-	// Reset the timer before the benchmark loop
+	// Main bench loop
 	for i := 0; b.Loop(); i++ {
 		ip := ips[i%len(ips)]
 		var record models.Country
@@ -267,36 +267,26 @@ func BenchmarkLookUpCountriesMmdb(b *testing.B) {
 
 // BenchmarkLookUpCountriesProto benchmarks the lookup performance using the Proto file
 func BenchmarkLookUpCountriesProto(b *testing.B) {
-	dummyCount = 0
 	root, err := services.UnmarshalProtoFile(ProtoCountryFilePath)
 	if err != nil {
 		b.Fatal(err)
 	}
-	// Build a map from CIDR to ISO code for O(1) lookups
-	cidrToIso := make(map[string]string, len(root.CidrCountryPairs))
-	for cidr, index := range root.CidrCountryPairs {
-		var iso string
-		if root.Geos[index].Country != nil {
-			iso = root.Geos[index].Country.IsoCode
-		} else if root.Geos[index].RegisteredCountry != nil {
-			iso = root.Geos[index].RegisteredCountry.IsoCode
-		}
-		cidrToIso[cidr] = iso
-	}
 
-	// Pre-store the CIDR strings from testTable
-	cidrs := make([]string, len(testTable))
+	// Pre-parse the IP addresses from the test table
+	ips := make([]net.IP, len(testTable))
 	for i, tc := range testTable {
-		cidrs[i] = tc.CIDR
+		ip, _, err := net.ParseCIDR(tc.CIDR)
+		if err != nil {
+			b.Fatal(err)
+		}
+		ips[i] = ip
 	}
 
-	// Reset the timer before the benchmark loop
+	// Main bench loop
 	for i := 0; b.Loop(); i++ {
-		cidr := cidrs[i%len(cidrs)]
-		iso, ok := cidrToIso[cidr]
-		if !ok {
-			b.Fatalf("CIDR %v not found in proto data", cidr)
+		ip := ips[i%len(ips)]
+		if _, err := services.LookUpProtoIp(ip, root); err != nil {
+			b.Fatalf("IP %v lookup failed: %v", ip, err)
 		}
-		dummyCount += len(iso)
 	}
 }

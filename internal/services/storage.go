@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 
 	"cmd/internal/models"
@@ -102,4 +103,15 @@ func ConvertJSONToProtoFiles(pathJSON string, pathProto string) error {
 	}
 
 	return nil
+}
+
+func LookUpProtoIp(ip net.IP, data *models.Root) (*models.Geo, error) {
+	dataId := data.CidrCountryPairs[ip.String()]
+
+	result := data.Geos[dataId]
+	if result == nil {
+		return nil, fmt.Errorf("not found data by index - ip: %v - %v", dataId, ip)
+	}
+
+	return result, nil
 }
