@@ -36,8 +36,8 @@ The benchmarks compare the performance of country lookups using MMDB and Proto a
 ### Before Optimisation
 
 ```bash
-BenchmarkLookUpCountriesMmdb-12          1973247               605.4 ns/op            33 B/op          1 allocs/op
-BenchmarkLookUpCountriesProto-12        100000000               10.52 ns/op            0 B/op          0 allocs/op
+BenchmarkLookUpCountriesMmdb-12          1741753               706.8 ns/op            34 B/op          2 allocs/op
+BenchmarkLookUpCountriesProto-12         8568613               139.8 ns/op             0 B/op          0 allocs/op
 ```
 ### After Optimisation
 
