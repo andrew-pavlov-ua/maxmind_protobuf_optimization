@@ -4,10 +4,6 @@ import (
 	"cmd/internal/models"
 	"cmd/internal/services"
 	"fmt"
-	"net"
-	"os"
-
-	"github.com/oschwald/maxminddb-golang"
 )
 
 const (
@@ -26,49 +22,49 @@ const (
 
 // }
 
-// func main() {
-// 	err := services.ConvertJSONToProtoFiles("./assets/GeoLite2-Country-Test.json", "./assets/GeoLite2-Country-Test.proto")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	data, err := services.ReadFullProtoFile("./assets/GeoLite2-Country-Test.proto")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	PrintData(data)
-// }
-
 func main() {
-	content, err := os.ReadFile(mmdbPath)
+	err := services.ConvertJSONToProtoFiles(jsonPath, protoPath)
 	if err != nil {
 		panic(err)
 	}
 
-	db, err := maxminddb.FromBytes(content)
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	geoPairs, err := services.ReadFullProtoFile(protoPath)
+	data, err := services.ReadFullProtoFile(protoPath)
 	if err != nil {
 		panic(err)
 	}
 
-	for i, pair := range geoPairs.Geos {
-		ip, _, err := net.ParseCIDR(pair.CIDR)
-		if err != nil {
-			panic(err)
-		}
-
-		var result models.MMDBDataItem
-
-		db.Lookup(ip, &result)
-		fmt.Printf("%v) Result:%v \n---------------------------------------------\n", i, result)
-	}
+	PrintData(data)
 }
+
+// func main() {
+// 	content, err := os.ReadFile(mmdbPath)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	db, err := maxminddb.FromBytes(content)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer db.Close()
+
+// 	geoPairs, err := services.ReadFullProtoFile(protoPath)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	for i, pair := range geoPairs.Geos {
+// 		ip, _, err := net.ParseCIDR(pair.CIDR)
+// 		if err != nil {
+// 			panic(err)
+// 		}
+
+// 		var result models.MMDBDataItem
+
+// 		db.Lookup(ip, &result)
+// 		fmt.Printf("%v) Result:%v \n---------------------------------------------\n", i, result)
+// 	}
+// }
 
 // PrintData prints all parsed information
 func PrintData(dataItems *models.DataItems) {

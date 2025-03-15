@@ -113,3 +113,12 @@ func ConvertMMDBToProto(pathMMDB string, pathProto string) error {
 
 	return nil
 }
+
+func LookUpProtoCidr(cidr string, items *models.DataItems) (*models.DataItem, error) {
+	for _, item := range items.Geos {
+		if item.CIDR == cidr {
+			return item, nil
+		}
+	}
+	return nil, fmt.Errorf("not found item by cidr: %v", cidr)
+}

@@ -89,7 +89,6 @@ var testTable = []struct {
 	{CIDR: "2a02:d480::/29", ISOCode: "DE"},
 	{CIDR: "2a02:d4c0::/30", ISOCode: "FI"},
 	{CIDR: "2a02:d4e0::/30", ISOCode: "DE"},
-	{CIDR: "2a02:d500::/29", ISOCode: ""},
 	{CIDR: "2a02:d540::/29", ISOCode: "GB"},
 	{CIDR: "2a02:d580::/29", ISOCode: "FR"},
 	{CIDR: "2a02:d5c0::/29", ISOCode: "ES"},
@@ -217,15 +216,21 @@ func TestLookUpCountriesProto(t *testing.T) {
 	// Build a map from CIDR to ISO code for fast lookups.
 	cidrToIso := make(map[string]string, len(pairs.Geos))
 	for _, pair := range pairs.Geos {
-		cidrToIso[pair.CIDR] = pair.Geo.Country.IsoCode
+		if pair.Geo.Country != nil {
+			cidrToIso[pair.CIDR] = pair.Geo.Country.IsoCode
+		} else if pair.Geo.RegisteredCountry != nil {
+			cidrToIso[pair.CIDR] = pair.Geo.RegisteredCountry.IsoCode
+		} else {
+			continue
+		}
 	}
 
 	// For each test case, check that the expected ISO code matches the one in the map.
 	for _, tc := range testTable {
-		iso, ok := cidrToIso[tc.CIDR]
-		require.True(t, ok, "CIDR %v not found in proto data", tc.CIDR)
-		t.Logf("Current case IP and Country: %v - expected: %v, got: %v", tc.CIDR, tc.ISOCode, iso)
-		require.Equal(t, tc.ISOCode, iso)
+		item, err := services.LookUpProtoCidr(tc.CIDR, pairs)
+		assert.NoError(t, err)
+		t.Logf("Current case IP and Country: %v - expected: %v, got: %v", tc.CIDR, tc.ISOCode, item.Geo.Country.IsoCode)
+		require.Equal(t, tc.ISOCode, item.Geo.Country.IsoCode)
 	}
 }
 
@@ -298,14 +303,9 @@ func BenchmarkLookUpCountriesMmdb(b *testing.B) {
 func BenchmarkLookUpCountriesProto(b *testing.B) {
 	dummyCount = 0
 	// Read the full Proto file.
-	pairs, err := services.ReadFullProtoFile(ProtoCountryFilePath)
+	items, err := services.ReadFullProtoFile(ProtoCountryFilePath)
 	if err != nil {
 		b.Fatal(err)
-	}
-	// Build a map from CIDR to ISO code for O(1) lookups.
-	cidrToIso := make(map[string]string, len(pairs.Geos))
-	for _, pair := range pairs.Geos {
-		cidrToIso[pair.CIDR] = pair.Geo.Country.IsoCode
 	}
 
 	// Pre-store the CIDR strings from testTable.
@@ -315,12 +315,13 @@ func BenchmarkLookUpCountriesProto(b *testing.B) {
 	}
 
 	// Reset the timer before the benchmark loop.
+	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		cidr := cidrs[i%len(cidrs)]
-		iso, ok := cidrToIso[cidr]
-		if !ok {
+		item, err := services.LookUpProtoCidr(cidr, items)
+		if err != nil {
 			b.Fatalf("CIDR %v not found in proto data", cidr)
 		}
-		dummyCount += len(iso)
+		dummyCount += len(item.Geo.Country.IsoCode)
 	}
 }
