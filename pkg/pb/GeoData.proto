@@ -5,48 +5,48 @@ package IpData;
 option go_package = "internal/models";
 
 message DataItem {
-    string CIDR = 1;
-    Geo geo = 2;
+  string CIDR = 1;
+  Geo geo = 2;
 }
 
 message Geo {
-    message Names{
-        string de = 1;
-        string en = 2;
-        string es = 3;
-        string fr = 4;
-        string ja = 5;
-        string pt_BR = 6 [json_name="pt-BR"];
-        string ru = 7;
-        string zh_CN = 8 [json_name="zh-CN"];
-    }
+  message Names{
+    string de = 1;
+    string en = 2;
+    string es = 3;
+    string fr = 4;
+    string ja = 5;
+    string pt_BR = 6 [json_name = "pt-BR"];
+    string ru = 7;
+    string zh_CN = 8 [json_name = "zh-CN"];
+  }
 
- 
-    message Continent {
+
+  message Continent {
     string code = 1;
     uint32 geoname_id = 2;
     Names names = 3;
-    }
+  }
 
-    message Country {
+  message Country {
     uint32 geoname_id = 1;
     bool is_in_european_union = 2;
     string iso_code = 3;
     Names names = 4;
-    }
+  }
 
-    message Registered_country {
+  message Registered_country {
     uint32 geoname_id = 1;
     bool is_in_european_union = 2;
     string iso_code = 3;
     Names names = 4;
-    }
+  }
 
-    Continent continent = 1;
-    Country country = 2;
-    Registered_country registered_country = 3;
+  Continent continent = 1;
+  Country country = 2;
+  Registered_country registered_country = 3;
 }
 
 message DataItems {
-    repeated DataItem geos = 1;
+  repeated DataItem geos = 1;
 }

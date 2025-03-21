@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 
 	"cmd/internal/models"
@@ -121,4 +122,71 @@ func LookUpProtoCidr(cidr string, items *models.DataItems) (*models.DataItem, er
 		}
 	}
 	return nil, fmt.Errorf("not found item by cidr: %v", cidr)
+}
+
+type GeoItem struct {
+	IPNet      *net.IPNet
+	CountryISO string
+}
+
+func Convert(items []*models.DataItem) ([]GeoItem, error) {
+	result := make([]GeoItem, len(items))
+	for i, item := range items {
+		_, ipNet, err := net.ParseCIDR(item.CIDR)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse CIDR: %w", err)
+		}
+
+		result[i] = GeoItem{
+			IPNet:      ipNet,
+			CountryISO: item.GetGeo().GetCountry().GetIsoCode(),
+		}
+	}
+	return result, nil
+}
+
+func LookUpProtoByIPDirect(ip net.IP, items []GeoItem) (string, error) {
+	for _, item := range items {
+		if item.IPNet.Contains(ip) {
+			return item.CountryISO, nil
+		}
+	}
+	return "", fmt.Errorf("not found item by ip: %v", ip)
+}
+
+// SortGeoItems для сортування GeoItem за мережею (IP-адреса)
+type SortGeoItems []GeoItem
+
+func (a SortGeoItems) Len() int           { return len(a) }
+func (a SortGeoItems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SortGeoItems) Less(i, j int) bool { return bytesCompare(a[i].IPNet.IP, a[j].IPNet.IP) < 0 }
+
+// bytesCompare порівнює дві IP-адреси як байти
+func bytesCompare(ip1, ip2 net.IP) int {
+	for i := 0; i < len(ip1); i++ {
+		if ip1[i] < ip2[i] {
+			return -1
+		} else if ip1[i] > ip2[i] {
+			return 1
+		}
+	}
+	return 0
+}
+
+func LookUpProtoByIPBTree(ip net.IP, items []GeoItem) (string, error) {
+
+	// Виконуємо бінарний пошук
+	left, right := 0, len(items)-1
+	for left <= right {
+		mid := left + (right-left)/2
+		if items[mid].IPNet.Contains(ip) {
+			return items[mid].CountryISO, nil
+		} else if bytesCompare(ip, items[mid].IPNet.IP) < 0 {
+			right = mid - 1
+		} else {
+			left = mid + 1
+		}
+	}
+
+	return "", fmt.Errorf("not found item by ip: %v", ip)
 }

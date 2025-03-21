@@ -6,12 +6,19 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/oschwald/maxminddb-golang"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/test-go/testify/assert"
 )
+
+type tcs struct {
+	IP      net.IP
+	ISOCode string
+}
 
 const (
 	JSONCountryFilePath  = "../assets/GeoLite2-Country-Test.json"
@@ -265,11 +272,28 @@ func TestLookUpCountriesFromProtoInMMDB(t *testing.T) {
 	}
 }
 
-var dummyCount int
+func cidrToMinMaxIP(cidr string) (net.IP, net.IP, error) {
+	// Parse the CIDR address
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Get the IP address range
+	minIP := ipnet.IP
+	maxIP := make(net.IP, len(minIP))
+	copy(maxIP, minIP)
+
+	// Calculate the max IP address by setting the host part to all 1s
+	for i := len(minIP) - 1; i >= 0; i-- {
+		maxIP[i] |= ^ipnet.Mask[i]
+	}
+
+	return minIP, maxIP, nil
+}
 
 // BenchmarkLookUpCountriesMmdb benchmarks the lookup performance using the MMDB file.
-func BenchmarkLookUpCountriesMmdb(b *testing.B) {
-	dummyCount = 0
+func BenchmarkLookUpCountriesMmdbInFile(b *testing.B) {
 	// Open the MMDB file once.
 	db, err := maxminddb.Open(MMDBCountryFilePath)
 	if err != nil {
@@ -277,51 +301,116 @@ func BenchmarkLookUpCountriesMmdb(b *testing.B) {
 	}
 	defer db.Close()
 
-	// Pre-parse the IP addresses from the test table.
-	ips := make([]net.IP, len(testTable))
-	for i, tc := range testTable {
-		ip, _, err := net.ParseCIDR(tc.CIDR)
-		if err != nil {
-			b.Fatal(err)
-		}
-		ips[i] = ip
-	}
+	its := prepareTestCases(b)
 
-	// Reset the timer before the benchmark loop.
-	for i := 0; b.Loop(); i++ {
-		// Cycle through the pre-parsed IPs.
-		ip := ips[i%len(ips)]
-		var record models.Country
-		if err := db.Lookup(ip, &record); err != nil {
-			b.Fatal(err)
+	var counter uint64
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			i := int(atomic.AddUint64(&counter, 1))
+
+			// Cycle through the pre-parsed IPs.
+			tc := its[i%len(its)]
+			var record models.Country
+			if err := db.Lookup(tc.IP, &record); err != nil {
+				b.Fatal(err)
+			}
+			require.Equal(b, tc.ISOCode, record.Country.ISOCode)
 		}
-		dummyCount += len(record.Country.ISOCode)
-	}
+	})
 }
 
-// BenchmarkLookUpCountriesProto benchmarks the lookup performance using the Proto file.
-func BenchmarkLookUpCountriesProto(b *testing.B) {
-	dummyCount = 0
-	// Read the full Proto file.
-	items, err := services.ReadFullProtoFile(ProtoCountryFilePath)
+// BenchmarkLookUpCountriesMmdb benchmarks the lookup performance using the MMDB file.
+func BenchmarkLookUpCountriesMmdbInMemory(b *testing.B) {
+	content, err := os.ReadFile(MMDBCountryFilePath)
+	require.NoError(b, err)
+
+	// Open the MMDB file once.
+	db, err := maxminddb.FromBytes(content)
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer db.Close()
 
-	// Pre-store the CIDR strings from testTable.
-	cidrs := make([]string, len(testTable))
-	for i, tc := range testTable {
-		cidrs[i] = tc.CIDR
-	}
+	its := prepareTestCases(b)
+
+	// Reset the timer before the benchmark loop.
+	var counter uint64
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			i := int(atomic.AddUint64(&counter, 1))
+
+			// Cycle through the pre-parsed IPs.
+			tc := its[i%len(its)]
+			var record models.Country
+			if err := db.Lookup(tc.IP, &record); err != nil {
+				b.Fatal(err)
+			}
+			require.Equal(b, tc.ISOCode, record.Country.ISOCode)
+		}
+	})
+}
+
+// BenchmarkLookUpCountriesProto benchmarks the lookup performance using the Proto file.
+func BenchmarkLookUpCountriesProtoDirect(b *testing.B) {
+	// Read the full Proto file.
+	items, err := services.ReadFullProtoFile(ProtoCountryFilePath)
+	require.NoError(b, err)
+
+	itemsPrepared, err := services.Convert(items.Geos)
+	require.NoError(b, err)
+
+	its := prepareTestCases(b)
 
 	// Reset the timer before the benchmark loop.
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
-		cidr := cidrs[i%len(cidrs)]
-		item, err := services.LookUpProtoCidr(cidr, items)
-		if err != nil {
-			b.Fatalf("CIDR %v not found in proto data", cidr)
-		}
-		dummyCount += len(item.Geo.Country.IsoCode)
+		tc := its[i%len(its)]
+		item, err := services.LookUpProtoByIPDirect(tc.IP, itemsPrepared)
+		require.NoError(b, err)
+		require.Equal(b, tc.ISOCode, item)
 	}
+}
+
+func BenchmarkLookUpCountriesProtoBTree(b *testing.B) {
+	// Read the full Proto file.
+	items, err := services.ReadFullProtoFile(ProtoCountryFilePath)
+	require.NoError(b, err)
+
+	itemsPrepared, err := services.Convert(items.Geos)
+	require.NoError(b, err)
+
+	its := prepareTestCases(b)
+
+	sort.Sort(services.SortGeoItems(itemsPrepared))
+
+	// Reset the timer before the benchmark loop.
+	b.ResetTimer()
+	for i := 0; b.Loop(); i++ {
+		tc := its[i%len(its)]
+		item, err := services.LookUpProtoByIPBTree(tc.IP, itemsPrepared)
+		require.NoError(b, err)
+		require.Equal(b, tc.ISOCode, item)
+	}
+}
+
+func prepareTestCases(b *testing.B) []tcs {
+	its := make([]tcs, 0, 2*len(testTable))
+
+	// Pre-parse the IP addresses from the test table.
+	for _, tc := range testTable {
+		minIP, maxIP, err := cidrToMinMaxIP(tc.CIDR)
+		if err != nil {
+			b.Fatal(err)
+		}
+		its = append(its, tcs{
+			IP:      minIP,
+			ISOCode: tc.ISOCode,
+		}, tcs{
+			IP:      maxIP,
+			ISOCode: tc.ISOCode,
+		})
+	}
+	return its
 }
